@@ -1,0 +1,83 @@
+clear, close, clc;
+
+pho = [ 300 ; 862 ; 74.2 ; 1.18 ] ;%密度
+c = [ 1377 ; 2100 ; 1726 ; 1005 ] ;%比热容
+lambda = [ 0.082 ; 0.37 ; 0.045 ; 0.028 ] ;%热导率
+a=lambda ./ ( pho .* c ) ;%热扩散率
+d = [0.6; 6; 3.6; 5] * 10 ^ -3; %各层厚度
+
+T_trans = 273.15;
+T_in = 37; %体温
+T_out = 75; %环境温度
+T_static = 48.08; %稳定温度
+
+xmin = 0;
+xmax = sum(d);
+
+global T_total;
+T_total = 5400; %总时间
+x_step = 0.05 * 10^-3; %空间步长
+t_step = 1; %时间步长
+r = t_step / x_step ^ 2;
+global I;
+I = ceil((xmax - xmin) / x_step); %空间间隔数
+
+A = zeros(1, I);
+B = zeros(1, I + 1);
+C = zeros(1, I);
+
+four = 4; %4种材料
+N = ceil(d / x_step);
+
+istart = 1;
+for itype = 1 : four
+    iend = istart + N(itype) - 1;
+    for ix = istart : iend
+        A(ix) = -a(itype) * r;
+        B(ix) = 2 + 2 * r * a(itype);
+        C(ix) = -r * a(itype);
+    end
+    istart = iend + 1;
+end
+
+T = zeros(I + 1, T_total + 1);
+T(:, 1) = (T_in + T_trans) *...
+    ones (I + 1, 1); %一开始整件衣服都是体温
+T_xt = xlsread(...
+    'data\02-CUMCM2018A-高温作业专用服装设计-相关数据.xlsx',...
+    '附件2', 'A3:B5403');
+
+h_min = 110;
+h_max = 120;
+delta_h = 1;
+H1 = h_min:delta_h:h_max;
+delta = zeros(1, length(H1));
+
+k = lambda;
+x = zeros(four, 1);
+for ix = 1 : four
+    if ix == 1
+        last = 0;
+    else
+        last = x(ix - 1);
+    end
+    x(ix) = last + d(ix);
+end
+global t1;
+t1 = T_out + T_trans;
+global t2;
+t2 = T_in + T_trans;
+global t3;
+t3 = T_static + T_trans;
+for j = 1 : length(H1)
+% for j = 1 : 2
+    h1 = h_min + (j - 1) * delta_h;
+    
+    T = model_simulation(h1);
+%     figure;
+%     mesh(0:t_step:T_total, 1000 * (0 : x_step : sum(d)), (T - T_trans));
+%     figure;
+%     plot(T_xt(:, 1), T_xt(:, 2) - T(end, :)' + T_trans);
+    delta(j) = sqrt(sum((T_xt(:, 2) - T(end, :)' ...
+        + T_trans) .^2) / length(T_xt(:, 1)));
+end
